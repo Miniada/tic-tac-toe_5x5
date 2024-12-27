@@ -2,7 +2,7 @@ import tkinter as tk
 from itertools import cycle
 from tkinter import font
 from tkinter import messagebox
-
+import threading
 from typing import NamedTuple
 
 class Player(NamedTuple):
@@ -22,7 +22,7 @@ DEFAULT_PLAYERS = (
 )
 
 class TicTacToeGame:
-    def __init__(self, players=DEFAULT_PLAYERS, board_size=BOARD_SIZE):
+    def __init__(self, socket, players=DEFAULT_PLAYERS, board_size=BOARD_SIZE):
         self._players = cycle(players)
         self.board_size = board_size
         self.combo_size = COMBO_SIZE
@@ -32,6 +32,11 @@ class TicTacToeGame:
         self._has_winner = False
         self._winning_combos = []
         self._setup_board()
+        self._socket = socket
+        
+    
+    def notify(self, move):
+        self._socket.send(f"{move[0]}, {move[1]}".encode())
 
     def _setup_board(self):
         self._current_moves = [
@@ -100,16 +105,24 @@ class TicTacToeGame:
                 row_content[col] = Move(row, col)
         self._has_winner = False
         self.winner_combo = []
+        self._players = cycle(DEFAULT_PLAYERS)
+        self.current_player = next(self._players)
+
 
 class TicTacToeBoard(tk.Tk):
-    def __init__(self, game):
+    def __init__(self, game, socket, mult_turn):
         super().__init__()
         self.title("Tic-Tac-Toe Game")
         self._cells = {}
         self._game = game
+        self._socket = socket
         self._create_menu()
         self._create_board_display()
         self._create_board_grid()
+        self.turn = 0
+        self._mult_turn = mult_turn
+        if (socket != None):
+            threading.Thread(target = self.receive_update, daemon = True).start()
 
 
     def _create_board_display(self):
@@ -141,14 +154,24 @@ class TicTacToeBoard(tk.Tk):
                     highlightbackground="lightblue",
                 )
                 self._cells[button] = (row, col)
-                button.bind("<ButtonPress-1>", self.play)
-                button.grid(
-                    row=row,
-                    column=col,
-                    padx=5,
-                    pady=5,
-                    sticky="nsew"
-                )
+                if (self._socket == None):
+                    button.bind("<ButtonPress-1>", self.play)
+                    button.grid(
+                        row=row,
+                        column=col,
+                        padx=5,
+                        pady=5,
+                        sticky="nsew"
+                    )
+                else:
+                    button.bind("<ButtonPress-1>", self.mult_play)
+                    button.grid(
+                        row=row,
+                        column=col,
+                        padx=5,
+                        pady=5,
+                        sticky="nsew"
+                    )
 
     def _update_button(self, clicked_btn):
         clicked_btn.config(text=self._game.current_player.label)
@@ -163,12 +186,70 @@ class TicTacToeBoard(tk.Tk):
         self.display["text"] = msg
         self.display["fg"] = color
     
-    def play(self, event):
+
+    def receive_update(self):
+        while True:
+            message = self._socket.recv(10).decode().strip() # get opponent's move
+            if (message == None or message == ""):
+                continue
+            print(message)
+            if (message == "tie?"):
+                ask = tk.messagebox.askyesno("", "Tie?")
+                if ask:
+                    self._update_display(msg="Tied game!", color="red")
+                    self._socket.send("yes!".encode())
+                    self.reset_board()
+                continue
+            if (message == "yes!"):
+                self._update_display(msg="Tied game!", color="red")
+                self.reset_board()
+                continue
+
+
+            if (message == "again?"):
+                ask = tk.messagebox.askyesno("", "Again?")
+                if ask:
+                    self._socket.send("again!".encode())
+                    self.reset_board()
+                continue
+            if (message == "again!"):
+                self.reset_board()
+                continue
+            parts = message.split(", ")
+            row, col = map(int, parts)
+            keys = [k for k, (v, l) in self._cells.items() if (v, l) == (row, col)]
+            if (keys == None):
+                continue
+            self._update_button(keys[0])
+            move = Move(row, col, self._game.current_player.label)
+            self._game.process_move(move)
+            if self._game.is_tied():
+                self._update_display(msg="Tied game!", color="red")
+            elif self._game.has_winner():
+                self._highlight_cells()
+                msg = f'Player "{self._game.current_player.label}" won!'
+                color = self._game.current_player.color
+                self._update_display(msg, color)
+            else:
+                self._game.toggle_player()
+                msg = f"{self._game.current_player.label}'s turn"
+                self._update_display(msg)  
+            self.turn  = (self.turn + 1) % 2
+
+    def mult_play(self, event):
+        if (self.turn != self._mult_turn):
+            return
+        self.play(event)
+
+
+    def play(self, event): 
         """Handle a player's move."""
         clicked_btn = event.widget
         row, col = self._cells[clicked_btn]
         move = Move(row, col, self._game.current_player.label)
         if self._game.is_valid_move(move):
+            if (self._socket != None):
+                self._game.notify(move)
             self._update_button(clicked_btn)
             self._game.process_move(move)
             if self._game.is_tied():
@@ -181,37 +262,63 @@ class TicTacToeBoard(tk.Tk):
             else:
                 self._game.toggle_player()
                 msg = f"{self._game.current_player.label}'s turn"
-                self._update_display(msg)
+                self._update_display(msg)  
+            self.turn = (self.turn + 1) % 2
+            
 
     def _create_menu(self):
         menu_bar = tk.Menu(master=self)
         self.config(menu=menu_bar)
         menu_bar.add_command(label="Exit", command=quit)
         menu_bar.add_separator()
-        menu_bar.add_command(
-            label="Play Again",
-            command=self.reset_board
-        )
+        if (self._socket == None):
+            menu_bar.add_command(
+                label="Play Again",
+                command=self.reset_board
+            )
+        else:
+            menu_bar.add_command(
+                label="Play Again",
+                command=self.play_again
+            )
         menu_bar.add_separator()
         menu_bar.add_command(label="Tie?", command=self.ask_tie)
 
     def reset_board(self):
+        self.turn = 0
         self._game.reset_game()
         self._update_display(msg="Ready?")
         for button in self._cells.keys():
             button.config(highlightbackground="lightblue")
             button.config(text="")
             button.config(fg="black")
+        
+
+    def play_again(self):
+        self._socket.send("again?".encode())
+
+    def send_tie_message(self):
+        if (self._socket == None):
+            return
+        self._socket.send("tie?".encode())
 
     def ask_tie(self):
-        ask = tk.messagebox.askyesno("", "Tie?")
-        if ask:
-            self._update_display(msg="Tied game!", color="red")
+        if self._game.has_winner() != True: # locked the button when game has a winner
+            self.send_tie_message()
+            if (self._socket == None):
+                ask = tk.messagebox.askyesno("", "Tie?")
+                if ask:
+                    self._update_display(msg="Tied game!", color="red") 
+                    self.reset_board() # make tie reset the game
+        else:
+            msgbox = tk.messagebox.showinfo("Game ended already", "The match has already ended")
+
+    
 
 
 def main():
-    game = TicTacToeGame()
-    board = TicTacToeBoard(game)
+    game = TicTacToeGame(None)
+    board = TicTacToeBoard(game, None, 0)
     board.mainloop()
 
 if __name__ == "__main__":

@@ -72,6 +72,30 @@ class TicTacToeGame:
         no_winner = not self._has_winner
         return no_winner and move_was_not_played
 
+    def check_status(self, current_moves):
+        for combo in self._winning_combos:
+            results = set(
+                current_moves[n][m].label
+                for n, m in combo
+            )
+            is_win = (len(results) == 1) and ("" not in results)
+            if is_win:
+                pos = combo.__getitem__(0)
+                row = pos[0]
+                col = pos[1]
+                if current_moves[row][col].label == "X":
+                    return "X"
+                else:
+                    return "O"
+            else:
+                played_moves = (
+                    move.label for row in current_moves for move in row
+                )
+                if all(played_moves):
+                    return "tie"
+                else:
+                    return "ongoing"
+
     def process_move(self, move):
         row, col = move.row, move.col
         self._current_moves[row][col] = move
@@ -110,7 +134,7 @@ class TicTacToeGame:
 
 
 class TicTacToeBoard(tk.Tk):
-    def __init__(self, game, socket, mult_turn):
+    def __init__(self, game, socket, mult_turn, ai_player):
         super().__init__()
         self.title("Tic-Tac-Toe Game")
         self._cells = {}
@@ -123,6 +147,7 @@ class TicTacToeBoard(tk.Tk):
         self._mult_turn = mult_turn
         if (socket != None):
             threading.Thread(target = self.receive_update, daemon = True).start()
+        self.ai_player = ai_player
 
 
     def _create_board_display(self):
@@ -243,27 +268,38 @@ class TicTacToeBoard(tk.Tk):
 
 
     def play(self, event): 
-        """Handle a player's move."""
-        clicked_btn = event.widget
-        row, col = self._cells[clicked_btn]
-        move = Move(row, col, self._game.current_player.label)
-        if self._game.is_valid_move(move):
-            if (self._socket != None):
-                self._game.notify(move)
-            self._update_button(clicked_btn)
-            self._game.process_move(move)
-            if self._game.is_tied():
-                self._update_display(msg="Tied game!", color="red")
-            elif self._game.has_winner():
-                self._highlight_cells()
-                msg = f'Player "{self._game.current_player.label}" won!'
-                color = self._game.current_player.color
-                self._update_display(msg, color)
-            else:
-                self._game.toggle_player()
-                msg = f"{self._game.current_player.label}'s turn"
-                self._update_display(msg)  
+        if self.ai_player != "" and self._game.current_player.label == self.ai_player:
+            from ai import ai_ask_move
+            move = ai_ask_move(self._game, self._game._current_moves, self.ai_player, 15)
+            print(move[0])
+            print(move[1])
+            keys = [k for k, (v, l) in self._cells.items() if (v, l) == (move[0], move[1])]
+            self._update_button(keys[0])
+            self._game._current_moves[move[0]][move[1]] = self._game._current_moves[move[0]][move[1]]._replace(label = self.ai_player)
+            self._game.toggle_player()
+            msg = f"{self._game.current_player.label}'s turn"
             self.turn = (self.turn + 1) % 2
+        else:
+            clicked_btn = event.widget
+            row, col = self._cells[clicked_btn]
+            move = Move(row, col, self._game.current_player.label)
+            if self._game.is_valid_move(move):
+                if (self._socket != None):
+                    self._game.notify(move)
+                self._update_button(clicked_btn)
+                self._game.process_move(move)
+                if self._game.is_tied():
+                    self._update_display(msg="Tied game!", color="red")
+                elif self._game.has_winner():
+                    self._highlight_cells()
+                    msg = f'Player "{self._game.current_player.label}" won!'
+                    color = self._game.current_player.color
+                    self._update_display(msg, color)
+                else:
+                    self._game.toggle_player()
+                    msg = f"{self._game.current_player.label}'s turn"
+                    self._update_display(msg)  
+                self.turn = (self.turn + 1) % 2
             
 
     def _create_menu(self):
@@ -318,7 +354,7 @@ class TicTacToeBoard(tk.Tk):
 
 def main():
     game = TicTacToeGame(None)
-    board = TicTacToeBoard(game, None, 0)
+    board = TicTacToeBoard(game, None, 0, "X")
     board.mainloop()
 
 if __name__ == "__main__":

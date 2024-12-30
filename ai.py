@@ -128,6 +128,7 @@ def ai_ask_move(current_game, current_moves, player, turn_length):
     global_game = current_game
 
     board = deepcopy(current_moves)
+    print(board)
 
     row = -1
     col = -1

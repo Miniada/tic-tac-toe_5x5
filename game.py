@@ -4,6 +4,7 @@ from tkinter import font
 from tkinter import messagebox
 import threading
 from typing import NamedTuple
+from random import randint
 
 class Player(NamedTuple):
     label: str
@@ -210,6 +211,7 @@ class TicTacToeBoard(tk.Tk):
     def _update_display(self, msg, color="black"):
         self.display["text"] = msg
         self.display["fg"] = color
+        self.update()
     
 
     def receive_update(self):
@@ -248,6 +250,7 @@ class TicTacToeBoard(tk.Tk):
             self._update_button(keys[0])
             move = Move(row, col, self._game.current_player.label)
             self._game.process_move(move)
+
             if self._game.is_tied():
                 self._update_display(msg="Tied game!", color="red")
             elif self._game.has_winner():
@@ -255,6 +258,7 @@ class TicTacToeBoard(tk.Tk):
                 msg = f'Player "{self._game.current_player.label}" won!'
                 color = self._game.current_player.color
                 self._update_display(msg, color)
+
             else:
                 self._game.toggle_player()
                 msg = f"{self._game.current_player.label}'s turn"
@@ -266,19 +270,38 @@ class TicTacToeBoard(tk.Tk):
             return
         self.play(event)
 
+    def update_display_if_win(self):
+        if self._game.is_tied():
+            self._update_display(msg="Tied game!", color="red")
+            return True
+        elif self._game.has_winner():
+            self._highlight_cells()
+            msg = f'Player "{self._game.current_player.label}" won!'
+            color = self._game.current_player.color
+            self._update_display(msg, color)
+            return True
+        return False
+
+    def ai_play(self):
+        from ai import ai_ask_move
+        move = ai_ask_move(self._game, self._game._current_moves, self.ai_player, 15)
+        print(move[0])
+        print(move[1])
+        keys = [k for k, (v, l) in self._cells.items() if (v, l) == (move[0], move[1])]
+        self._update_button(keys[0])
+        self._game._current_moves[move[0]][move[1]] = self._game._current_moves[move[0]][move[1]]._replace(label = self.ai_player)
+        self._game.process_move(Move(move[0], move[1], move[2]))
+        ended = self.update_display_if_win()
+
+        if not ended:
+            self._game.toggle_player()
+            msg = f"Your turn!"
+            self._update_display(msg);
+            self.turn = (self.turn + 1) % 2
 
     def play(self, event): 
         if self.ai_player != "" and self._game.current_player.label == self.ai_player:
-            from ai import ai_ask_move
-            move = ai_ask_move(self._game, self._game._current_moves, self.ai_player, 15)
-            print(move[0])
-            print(move[1])
-            keys = [k for k, (v, l) in self._cells.items() if (v, l) == (move[0], move[1])]
-            self._update_button(keys[0])
-            self._game._current_moves[move[0]][move[1]] = self._game._current_moves[move[0]][move[1]]._replace(label = self.ai_player)
-            self._game.toggle_player()
-            msg = f"{self._game.current_player.label}'s turn"
-            self.turn = (self.turn + 1) % 2
+            return
         else:
             clicked_btn = event.widget
             row, col = self._cells[clicked_btn]
@@ -288,18 +311,21 @@ class TicTacToeBoard(tk.Tk):
                     self._game.notify(move)
                 self._update_button(clicked_btn)
                 self._game.process_move(move)
-                if self._game.is_tied():
-                    self._update_display(msg="Tied game!", color="red")
-                elif self._game.has_winner():
-                    self._highlight_cells()
-                    msg = f'Player "{self._game.current_player.label}" won!'
-                    color = self._game.current_player.color
-                    self._update_display(msg, color)
-                else:
-                    self._game.toggle_player()
-                    msg = f"{self._game.current_player.label}'s turn"
-                    self._update_display(msg)  
+                ended = self.update_display_if_win()
+
                 self.turn = (self.turn + 1) % 2
+                if not ended:
+                    self._game.toggle_player()
+                    if self.ai_player == "":
+                        clicked_btn.configure(relief='raised')
+                        msg = f"{self._game.current_player.label}'s turn"
+                        self._update_display(msg)
+                    else:
+                        clicked_btn.configure(relief='raised')
+                        msg = f"Waiting for AI..."
+                        self._update_display(msg)
+                        self.ai_play()
+                        return "break"
             
 
     def _create_menu(self):
@@ -319,6 +345,8 @@ class TicTacToeBoard(tk.Tk):
             )
         menu_bar.add_separator()
         menu_bar.add_command(label="Tie?", command=self.ask_tie)
+        menu_bar.add_separator()
+        menu_bar.add_command(label="Play against AI", command=self.start_ai_play)
 
     def reset_board(self):
         self.turn = 0
@@ -338,6 +366,26 @@ class TicTacToeBoard(tk.Tk):
             return
         self._socket.send("tie?".encode())
 
+    def set_ai_play_o(self):
+        self.ai_player = "O"
+
+    def set_ai_play_x(self):
+        self.ai_player = "X"
+
+    def start_ai_play(self):
+        self.reset_board()
+        player = randint(0, 1)
+        if player == 0:
+            msg = f"Your turn!"
+            self._update_display(msg)
+            self.set_ai_play_o()
+            return
+        else:
+            msg = f"Waiting for AI..."
+            self._update_display(msg)
+            self.set_ai_play_x()
+            self.ai_play()
+
     def ask_tie(self):
         if self._game.has_winner() != True: # locked the button when game has a winner
             self.send_tie_message()
@@ -354,7 +402,7 @@ class TicTacToeBoard(tk.Tk):
 
 def main():
     game = TicTacToeGame(None)
-    board = TicTacToeBoard(game, None, 0, "X")
+    board = TicTacToeBoard(game, None, 0, "")
     board.mainloop()
 
 if __name__ == "__main__":

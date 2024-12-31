@@ -88,14 +88,12 @@ class TicTacToeGame:
                     return "X"
                 else:
                     return "O"
-            else:
-                played_moves = (
-                    move.label for row in current_moves for move in row
-                )
-                if all(played_moves):
-                    return "tie"
-                else:
-                    return "ongoing"
+        played_moves = (
+            move.label for row in current_moves for move in row
+        )
+        if all(played_moves):
+            return "tie"
+        return "ongoing"
 
     def process_move(self, move):
         row, col = move.row, move.col
@@ -132,6 +130,18 @@ class TicTacToeGame:
         self.winner_combo = []
         self._players = cycle(DEFAULT_PLAYERS)
         self.current_player = next(self._players)
+
+    # checks if there's still a point in playing the game
+    def game_sanity_check(self):
+        for combo in self._winning_combos:
+            results = set(
+                self._current_moves[n][m].label
+                for n, m in combo
+            )
+            is_not_available = ("X" in results) and ("O" in results)
+            if not is_not_available:
+                return True
+        return False
 
 
 class TicTacToeBoard(tk.Tk):
@@ -285,8 +295,6 @@ class TicTacToeBoard(tk.Tk):
     def ai_play(self):
         from ai import ai_ask_move
         move = ai_ask_move(self._game, self._game._current_moves, self.ai_player, 15)
-        print(move[0])
-        print(move[1])
         keys = [k for k, (v, l) in self._cells.items() if (v, l) == (move[0], move[1])]
         self._update_button(keys[0])
         self._game._current_moves[move[0]][move[1]] = self._game._current_moves[move[0]][move[1]]._replace(label = self.ai_player)
@@ -388,12 +396,20 @@ class TicTacToeBoard(tk.Tk):
 
     def ask_tie(self):
         if self._game.has_winner() != True: # locked the button when game has a winner
-            self.send_tie_message()
-            if (self._socket == None):
-                ask = tk.messagebox.askyesno("", "Tie?")
-                if ask:
-                    self._update_display(msg="Tied game!", color="red") 
-                    self.reset_board() # make tie reset the game
+            if self.ai_player != "":
+                playable = self._game.game_sanity_check()
+                if playable:
+                    tk.messagebox.showinfo("Cannot tie game", "This game is not a tie.")
+                else:
+                    tk.messagebox.showinfo("Tie", "Tied game!") 
+                    self.reset_board()
+            else:
+                self.send_tie_message()
+                if (self._socket == None):
+                    ask = tk.messagebox.askyesno("", "Tie?")
+                    if ask:
+                        tk.messagebox.showinfo("Tie", "Tied game!") 
+                        self.reset_board() # make tie reset the game
         else:
             msgbox = tk.messagebox.showinfo("Game ended already", "The match has already ended")
 

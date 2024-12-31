@@ -20,7 +20,6 @@ class Node:
 def mcts(node, expanding=False):
     global boards
     boards += 1
-    #print(boards)
 
     node.games += 1
     from game import TicTacToeGame as game
@@ -89,37 +88,6 @@ def mcts(node, expanding=False):
             node.wins += child.games - child.wins
             node.games += child.games
 
-# checks if there is any way for anyone to still win
-# this may take a while
-def game_sanity_check(board, turn):
-    for i in range(5):
-        for j in range(5):
-            if board[i][j].label == "":
-                board[i][j].label = turn
-                status = game.check_status(global_game, board)
-                if status == "X" or status == "O":
-                    return True
-                else:
-                    ret = game_sanity_check(board, "O" if turn == "X" else "X")
-                    if ret:
-                        return True
-                board[i][j].label = ""
-    return False
-    
-
-def ai_ask_tie(current_moves, current_player):
-    cnt = 0;
-    for row in range(5):
-        for col in range(5):
-            if board[row][col].label != "":
-                cnt = cnt + 1
-    if cnt <= 13:
-        return False
-    board = deepcopy(current_moves)
-    ret = game_sanity_check(board, current_player)
-    return not ret
-
-
 def ai_ask_move(current_game, current_moves, player, turn_length):
     global boards
     boards = 0
@@ -128,11 +96,10 @@ def ai_ask_move(current_game, current_moves, player, turn_length):
     global_game = current_game
 
     board = deepcopy(current_moves)
-    print(board)
 
     row = -1
     col = -1
-    root = Node(board, player, row, col)
+    root = Node(board, player, -1, -1)
     start = time.time()
     while time.time() < start + turn_length:
         mcts(root)
@@ -145,7 +112,6 @@ def ai_ask_move(current_game, current_moves, player, turn_length):
             best_score = child.wins / child.games
 
     if row == -1 or col == -1:
-        print("aici")
         move = randint(0, 24)
         col = move % 5
         row = floor(move / 5)
@@ -153,7 +119,5 @@ def ai_ask_move(current_game, current_moves, player, turn_length):
             move = randint(0, 24)
             col = move % 5
             row = floor(move / 5)
-
-    print(board)
-    print(boards)
+    
     return (row, col, player)

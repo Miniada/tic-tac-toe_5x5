@@ -27,7 +27,9 @@ for i in range(2):
         addresses.append(addr)
         print(f"Jucatorul {i} conectat de la adresa {addr}")
 
+
 turn = 0
+c[turn].send("start".encode())
 c[turn].send("".encode())
 c[((turn + 1) % 2)].send("".encode())
 while True:

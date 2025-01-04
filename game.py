@@ -1,9 +1,13 @@
+from time import sleep
 import tkinter as tk
 from itertools import cycle
 from tkinter import font
 from tkinter import messagebox
 import threading
 from typing import NamedTuple
+from random import randint
+import os
+from multiprocessing import Process
 
 class Player(NamedTuple):
     label: str
@@ -72,6 +76,28 @@ class TicTacToeGame:
         no_winner = not self._has_winner
         return no_winner and move_was_not_played
 
+    def check_status(self, current_moves):
+        for combo in self._winning_combos:
+            results = set(
+                current_moves[n][m].label
+                for n, m in combo
+            )
+            is_win = (len(results) == 1) and ("" not in results)
+            if is_win:
+                pos = combo.__getitem__(0)
+                row = pos[0]
+                col = pos[1]
+                if current_moves[row][col].label == "X":
+                    return "X"
+                else:
+                    return "O"
+        played_moves = (
+            move.label for row in current_moves for move in row
+        )
+        if all(played_moves):
+            return "tie"
+        return "ongoing"
+
     def process_move(self, move):
         row, col = move.row, move.col
         self._current_moves[row][col] = move
@@ -108,9 +134,21 @@ class TicTacToeGame:
         self._players = cycle(DEFAULT_PLAYERS)
         self.current_player = next(self._players)
 
+    # checks if there's still a point in playing the game
+    def game_sanity_check(self):
+        for combo in self._winning_combos:
+            results = set(
+                self._current_moves[n][m].label
+                for n, m in combo
+            )
+            is_not_available = ("X" in results) and ("O" in results)
+            if not is_not_available:
+                return True
+        return False
+
 
 class TicTacToeBoard(tk.Tk):
-    def __init__(self, game, socket, mult_turn):
+    def __init__(self, game, socket, mult_turn, ai_player):
         super().__init__()
         self.title("Tic-Tac-Toe Game")
         self._cells = {}
@@ -123,6 +161,7 @@ class TicTacToeBoard(tk.Tk):
         self._mult_turn = mult_turn
         if (socket != None):
             threading.Thread(target = self.receive_update, daemon = True).start()
+        self.ai_player = ai_player
 
 
     def _create_board_display(self):
@@ -185,6 +224,7 @@ class TicTacToeBoard(tk.Tk):
     def _update_display(self, msg, color="black"):
         self.display["text"] = msg
         self.display["fg"] = color
+        self.update()
     
 
     def receive_update(self):
@@ -193,18 +233,24 @@ class TicTacToeBoard(tk.Tk):
             if (message == None or message == ""):
                 continue
             print(message)
+            if (message == "exit"):
+                self.destroy()
+                continue
             if (message == "tie?"):
                 ask = tk.messagebox.askyesno("", "Tie?")
                 if ask:
                     self._update_display(msg="Tied game!", color="red")
                     self._socket.send("yes!".encode())
                     self.reset_board()
+                else:
+                    self._socket.send("no!".encode())
                 continue
             if (message == "yes!"):
                 self._update_display(msg="Tied game!", color="red")
                 self.reset_board()
                 continue
-
+            if (message == "no!"):
+                continue
 
             if (message == "again?"):
                 ask = tk.messagebox.askyesno("", "Again?")
@@ -223,6 +269,7 @@ class TicTacToeBoard(tk.Tk):
             self._update_button(keys[0])
             move = Move(row, col, self._game.current_player.label)
             self._game.process_move(move)
+
             if self._game.is_tied():
                 self._update_display(msg="Tied game!", color="red")
             elif self._game.has_winner():
@@ -230,6 +277,7 @@ class TicTacToeBoard(tk.Tk):
                 msg = f'Player "{self._game.current_player.label}" won!'
                 color = self._game.current_player.color
                 self._update_display(msg, color)
+
             else:
                 self._game.toggle_player()
                 msg = f"{self._game.current_player.label}'s turn"
@@ -241,29 +289,60 @@ class TicTacToeBoard(tk.Tk):
             return
         self.play(event)
 
+    def update_display_if_win(self):
+        if self._game.is_tied():
+            self._update_display(msg="Tied game!", color="red")
+            return True
+        elif self._game.has_winner():
+            self._highlight_cells()
+            msg = f'Player "{self._game.current_player.label}" won!'
+            color = self._game.current_player.color
+            self._update_display(msg, color)
+            return True
+        return False
+
+    def ai_play(self):
+        from ai import ai_ask_move
+        move = ai_ask_move(self._game, self._game._current_moves, self.ai_player, 15)
+        keys = [k for k, (v, l) in self._cells.items() if (v, l) == (move[0], move[1])]
+        self._update_button(keys[0])
+        self._game._current_moves[move[0]][move[1]] = self._game._current_moves[move[0]][move[1]]._replace(label = self.ai_player)
+        self._game.process_move(Move(move[0], move[1], move[2]))
+        ended = self.update_display_if_win()
+
+        if not ended:
+            self._game.toggle_player()
+            msg = f"Your turn!"
+            self._update_display(msg)
+            self.turn = (self.turn + 1) % 2
 
     def play(self, event): 
-        """Handle a player's move."""
-        clicked_btn = event.widget
-        row, col = self._cells[clicked_btn]
-        move = Move(row, col, self._game.current_player.label)
-        if self._game.is_valid_move(move):
-            if (self._socket != None):
-                self._game.notify(move)
-            self._update_button(clicked_btn)
-            self._game.process_move(move)
-            if self._game.is_tied():
-                self._update_display(msg="Tied game!", color="red")
-            elif self._game.has_winner():
-                self._highlight_cells()
-                msg = f'Player "{self._game.current_player.label}" won!'
-                color = self._game.current_player.color
-                self._update_display(msg, color)
-            else:
-                self._game.toggle_player()
-                msg = f"{self._game.current_player.label}'s turn"
-                self._update_display(msg)  
-            self.turn = (self.turn + 1) % 2
+        if self.ai_player != "" and self._game.current_player.label == self.ai_player:
+            return
+        else:
+            clicked_btn = event.widget
+            row, col = self._cells[clicked_btn]
+            move = Move(row, col, self._game.current_player.label)
+            if self._game.is_valid_move(move):
+                if (self._socket != None):
+                    self._game.notify(move)
+                self._update_button(clicked_btn)
+                self._game.process_move(move)
+                ended = self.update_display_if_win()
+
+                self.turn = (self.turn + 1) % 2
+                if not ended:
+                    self._game.toggle_player()
+                    if self.ai_player == "":
+                        clicked_btn.configure(relief='raised')
+                        msg = f"{self._game.current_player.label}'s turn"
+                        self._update_display(msg)
+                    else:
+                        clicked_btn.configure(relief='raised')
+                        msg = f"Waiting for AI..."
+                        self._update_display(msg)
+                        self.ai_play()
+                        return "break"
             
 
     def _create_menu(self):
@@ -283,6 +362,8 @@ class TicTacToeBoard(tk.Tk):
             )
         menu_bar.add_separator()
         menu_bar.add_command(label="Tie?", command=self.ask_tie)
+        menu_bar.add_separator()
+        menu_bar.add_command(label="Play against AI", command=self.start_ai_play)
 
     def reset_board(self):
         self.turn = 0
@@ -295,31 +376,116 @@ class TicTacToeBoard(tk.Tk):
         
 
     def play_again(self):
-        self._socket.send("again?".encode())
+        if (self._socket == None):
+            return
+        if (self.turn == self._mult_turn):
+            self._socket.send("tie?".encode())
 
     def send_tie_message(self):
         if (self._socket == None):
             return
-        self._socket.send("tie?".encode())
+        if (self.turn == self._mult_turn):
+            self._socket.send("tie?".encode())
+
+    def set_ai_play_o(self):
+        self.ai_player = "O"
+
+    def set_ai_play_x(self):
+        self.ai_player = "X"
+
+    def start_ai_play(self):
+        self.reset_board()
+        player = randint(0, 1)
+        if player == 0:
+            msg = f"Your turn!"
+            self._update_display(msg)
+            self.set_ai_play_o()
+            return
+        else:
+            msg = f"Waiting for AI..."
+            self._update_display(msg)
+            self.set_ai_play_x()
+            self.ai_play()
 
     def ask_tie(self):
         if self._game.has_winner() != True: # locked the button when game has a winner
-            self.send_tie_message()
-            if (self._socket == None):
-                ask = tk.messagebox.askyesno("", "Tie?")
-                if ask:
-                    self._update_display(msg="Tied game!", color="red") 
-                    self.reset_board() # make tie reset the game
+            if self.ai_player != "":
+                playable = self._game.game_sanity_check()
+                if playable:
+                    tk.messagebox.showinfo("Cannot tie game", "This game is not a tie.")
+                else:
+                    tk.messagebox.showinfo("Tie", "Tied game!") 
+                    self.reset_board()
+            else:
+                self.send_tie_message()
+                if (self._socket == None):
+                    ask = tk.messagebox.askyesno("", "Tie?")
+                    if ask:
+                        tk.messagebox.showinfo("Tie", "Tied game!") 
+                        self.reset_board() # make tie reset the game
         else:
             msgbox = tk.messagebox.showinfo("Game ended already", "The match has already ended")
 
-    
 
+
+class SelectionMenu:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Selection Menu")
+
+        # Variable to store the selected value
+        self.selection = None
+
+        # Set up the main frame
+        self.frame = tk.Frame(self.root, padx=20, pady=20)
+        self.frame.pack()
+
+        # Add a title label
+        self.title_label = tk.Label(self.frame, text="Welcome to the Game", font=("Arial", 16, "bold"))
+        self.title_label.pack(pady=10)
+
+        # Add buttons for selections
+        self.single_player_button = tk.Button(self.frame, text="Single Player", width=20, command=lambda: self.make_selection(0))
+        self.single_player_button.pack(pady=5)
+
+        self.create_game_button = tk.Button(self.frame, text="Create a Game", width=20, command=lambda: self.make_selection(1))
+        self.create_game_button.pack(pady=5)
+
+        self.join_game_button = tk.Button(self.frame, text="Join a Game", width=20, command=lambda: self.make_selection(2))
+        self.join_game_button.pack(pady=5)
+
+    def make_selection(self, value):
+        self.selection = value
+        print(f"{value} selected")
+        self.root.destroy()
+
+
+
+def create_server():
+    os.system('python3 5x5_server.py')
+
+def create_client():
+    os.system('python3 5x5_client.py')
 
 def main():
-    game = TicTacToeGame(None)
-    board = TicTacToeBoard(game, None, 0)
-    board.mainloop()
+    root = tk.Tk()
+    app = SelectionMenu(root)
+    root.mainloop()
+    if (app.selection == 0):
+        game = TicTacToeGame(None)
+        board = TicTacToeBoard(game, None, 0, "")
+        board.mainloop()
+        return
+    if (app.selection == 1):
+        p = Process(target=create_server)
+        p1 = Process(target=create_client)
+        p.start()
+        sleep(1)
+
+        p1.start()
+        return
+    p2 = Process(target=create_client)
+    p2.start()
 
 if __name__ == "__main__":
     main()

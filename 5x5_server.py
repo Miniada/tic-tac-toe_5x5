@@ -16,7 +16,7 @@ def get_local_ipv4() -> int:
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-port = 12345
+port = 12346
 ip = get_local_ipv4()
 
 s.bind((ip, port))
@@ -38,7 +38,7 @@ for i in range(2):
         c.append(conn)
         conn.send(f"{i}".encode())
         addresses.append(addr)
-        print(f"Jucatorul {i} conectat de la adresa {addr}")
+        print(f"Player {i} connected from {addr}")
 
 
 turn = 0

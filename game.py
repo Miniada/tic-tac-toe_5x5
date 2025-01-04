@@ -1,3 +1,4 @@
+from time import sleep
 import tkinter as tk
 from itertools import cycle
 from tkinter import font
@@ -232,18 +233,24 @@ class TicTacToeBoard(tk.Tk):
             if (message == None or message == ""):
                 continue
             print(message)
+            if (message == "exit"):
+                self.destroy()
+                continue
             if (message == "tie?"):
                 ask = tk.messagebox.askyesno("", "Tie?")
                 if ask:
                     self._update_display(msg="Tied game!", color="red")
                     self._socket.send("yes!".encode())
                     self.reset_board()
+                else:
+                    self._socket.send("no!".encode())
                 continue
             if (message == "yes!"):
                 self._update_display(msg="Tied game!", color="red")
                 self.reset_board()
                 continue
-
+            if (message == "no!"):
+                continue
 
             if (message == "again?"):
                 ask = tk.messagebox.askyesno("", "Again?")
@@ -473,6 +480,8 @@ def main():
         p = Process(target=create_server)
         p1 = Process(target=create_client)
         p.start()
+        sleep(1)
+
         p1.start()
         return
     p2 = Process(target=create_client)

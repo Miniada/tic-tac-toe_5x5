@@ -4,7 +4,7 @@ from game import TicTacToeGame, TicTacToeBoard
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-port = 12347
+port = 12345
 
 s.bind(('', port))
 
@@ -30,8 +30,7 @@ for i in range(2):
 
 turn = 0
 c[turn].send("start".encode())
-c[turn].send("".encode())
-c[((turn + 1) % 2)].send("".encode())
+
 while True:
 
     message = c[turn].recv(10).decode().strip()

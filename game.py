@@ -154,6 +154,7 @@ class TicTacToeBoard(tk.Tk):
         self._cells = {}
         self._game = game
         self._socket = socket
+        self.ai_player = ai_player
         self._create_menu()
         self._create_board_display()
         self._create_board_grid()
@@ -161,7 +162,6 @@ class TicTacToeBoard(tk.Tk):
         self._mult_turn = mult_turn
         if (socket != None):
             threading.Thread(target = self.receive_update, daemon = True).start()
-        self.ai_player = ai_player
 
 
     def _create_board_display(self):
@@ -351,10 +351,16 @@ class TicTacToeBoard(tk.Tk):
         menu_bar.add_command(label="Exit", command=quit)
         menu_bar.add_separator()
         if (self._socket == None):
-            menu_bar.add_command(
-                label="Play Again",
-                command=self.reset_board
-            )
+            if self.ai_player == "":
+                menu_bar.add_command(
+                    label="Play Again",
+                    command=self.reset_board
+                )
+            else:
+                menu_bar.add_command(
+                    label="Play Again",
+                    command=self.start_ai_play
+                )
         else:
             menu_bar.add_command(
                 label="Play Again",
@@ -362,8 +368,6 @@ class TicTacToeBoard(tk.Tk):
             )
         menu_bar.add_separator()
         menu_bar.add_command(label="Tie?", command=self.ask_tie)
-        menu_bar.add_separator()
-        menu_bar.add_command(label="Play against AI", command=self.start_ai_play)
 
     def reset_board(self):
         self.turn = 0
@@ -445,7 +449,10 @@ class SelectionMenu:
         self.title_label.pack(pady=10)
 
         # Add buttons for selections
-        self.single_player_button = tk.Button(self.frame, text="Single Player", width=20, command=lambda: self.make_selection(0))
+        self.single_player_button = tk.Button(self.frame, text="Local Play", width=20, command=lambda: self.make_selection(0))
+        self.single_player_button.pack(pady=5)
+
+        self.single_player_button = tk.Button(self.frame, text="Play against AI", width=20, command=lambda: self.make_selection(3))
         self.single_player_button.pack(pady=5)
 
         self.create_game_button = tk.Button(self.frame, text="Create a Game", width=20, command=lambda: self.make_selection(1))
@@ -471,6 +478,12 @@ def main():
     root = tk.Tk()
     app = SelectionMenu(root)
     root.mainloop()
+    if app.selection == 3:
+        game = TicTacToeGame(None)
+        board = TicTacToeBoard(game, None, 0, "X")
+        board.start_ai_play()
+        board.mainloop()
+        return
     if (app.selection == 0):
         game = TicTacToeGame(None)
         board = TicTacToeBoard(game, None, 0, "")

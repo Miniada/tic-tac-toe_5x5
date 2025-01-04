@@ -27,6 +27,3 @@ try:
     s.close()
 except ConnectionRefusedError:
         print(f"Connection refused by {ip}:{port}")
-
-
-

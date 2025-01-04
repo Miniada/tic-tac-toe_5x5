@@ -2,23 +2,28 @@ import socket
 from time import sleep
 from game import DEFAULT_PLAYERS, TicTacToeGame, TicTacToeBoard
 
+
+ip = input("The address of the server you want to connect to: ").strip()
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 port = 12345
-s.connect(('127.0.0.1', port))
-i = int(s.recv(1024).decode())
-game = TicTacToeGame(s)
+try:
+    s.connect((ip, port))
+    i = int(s.recv(1024).decode())
+    game = TicTacToeGame(s)
 
-board = TicTacToeBoard(game, s, i, "")
+    board = TicTacToeBoard(game, s, i, "")
 
-if (i == 0):
-    s.recv(1024).decode()
+    if (i == 0):
+        s.recv(1024).decode()
 
-turn = 0
-player = DEFAULT_PLAYERS[i]
+    turn = 0
+    player = DEFAULT_PLAYERS[i]
 
-print(player[0])
+    print(player[0])
 
-board.mainloop()
+    board.mainloop()
 
-s.send("exit".encode())
-s.close()
+    s.send("exit".encode())
+    s.close()
+except ConnectionRefusedError:
+        print(f"Connection refused by {ip}:{port}")

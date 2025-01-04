@@ -1,13 +1,26 @@
 import socket
 from game import TicTacToeGame, TicTacToeBoard
 
+
+def get_local_ipv4() -> int:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception as e:
+        print(f"Error getting local IP: {e}")
+        return "127.0.0.1" 
+
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 port = 12345
+ip = get_local_ipv4()
 
-s.bind(('', port))
-
+s.bind((ip, port))
+print(ip)
 s.listen(5)
 
 

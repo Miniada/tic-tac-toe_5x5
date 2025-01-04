@@ -368,8 +368,6 @@ class TicTacToeBoard(tk.Tk):
             )
         menu_bar.add_separator()
         menu_bar.add_command(label="Tie?", command=self.ask_tie)
-        # menu_bar.add_separator()
-        # menu_bar.add_command(label="Play against AI", command=self.start_ai_play)
 
     def reset_board(self):
         self.turn = 0

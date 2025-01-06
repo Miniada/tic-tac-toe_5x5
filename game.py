@@ -230,7 +230,7 @@ class TicTacToeBoard(tk.Tk):
     def receive_update(self):
         while True:
             message = self._socket.recv(10).decode().strip() # get opponent's move
-            if (message == None or message == ""):
+            if (message == None or message == "" or message == "start"):
                 continue
             print(message)
             if (message == "exit"):

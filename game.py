@@ -153,7 +153,7 @@ class TicTacToeBoard(tk.Tk):
         self.title("Tic-Tac-Toe Game")
         self._cells = {}
         self._game = game
-        self._socket = socket
+        self._socket = socket # the socket will also be used to check if the game is a single or multi player one
         self.ai_player = ai_player
         self._create_menu()
         self._create_board_display()
@@ -226,12 +226,14 @@ class TicTacToeBoard(tk.Tk):
         self.display["fg"] = color
         self.update()
     
-
+    # this is the part where the client receives messages from the another client through
+    # the server
     def receive_update(self):
         while True:
             message = self._socket.recv(10).decode().strip() # get opponent's move
             if (message == None or message == "" or message == "start"):
                 continue
+            # check for messages that could ask for a tie or a re-match
             print(message)
             if (message == "exit"):
                 self.destroy()
@@ -261,6 +263,7 @@ class TicTacToeBoard(tk.Tk):
             if (message == "again!"):
                 self.reset_board()
                 continue
+            # get the other player's moves and mark them on the table
             parts = message.split(", ")
             row, col = map(int, parts)
             keys = [k for k, (v, l) in self._cells.items() if (v, l) == (row, col)]
@@ -269,7 +272,7 @@ class TicTacToeBoard(tk.Tk):
             self._update_button(keys[0])
             move = Move(row, col, self._game.current_player.label)
             self._game.process_move(move)
-
+            # update the message
             if self._game.is_tied():
                 self._update_display(msg="Tied game!", color="red")
             elif self._game.has_winner():
@@ -284,6 +287,7 @@ class TicTacToeBoard(tk.Tk):
                 self._update_display(msg)  
             self.turn  = (self.turn + 1) % 2
 
+    # if it's not this player's turn, then do nothing
     def mult_play(self, event):
         if (self.turn != self._mult_turn):
             return
@@ -445,7 +449,7 @@ class SelectionMenu:
 
         self.title_label = tk.Label(self.frame, text="Welcome to the Game", font=("Arial", 16, "bold"))
         self.title_label.pack(pady=10)
-        # selection buttons
+        # selection buttons and return a value
         self.single_player_button = tk.Button(self.frame, text="Local Play", width=20, command=lambda: self.make_selection(0))
         self.single_player_button.pack(pady=5)
         
@@ -457,7 +461,7 @@ class SelectionMenu:
 
         self.join_game_button = tk.Button(self.frame, text="Join a Game", width=20, command=lambda: self.make_selection(2))
         self.join_game_button.pack(pady=5)
-
+    # the value will be used to determine which type of game to start
     def make_selection(self, value):
         self.selection = value
         print(f"{value} selected")
@@ -487,6 +491,7 @@ def main():
         board.mainloop()
         return
     if (app.selection == 1):
+        # proccesses for starting a server and a client
         p = Process(target=create_server)
         p1 = Process(target=create_client)
         p.start()
@@ -494,6 +499,7 @@ def main():
 
         p1.start()
         return
+    # process for the player that is joining an already existing game
     p2 = Process(target=create_client)
     p2.start()
 

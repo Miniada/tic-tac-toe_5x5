@@ -437,21 +437,18 @@ class SelectionMenu:
         self.root = root
         self.root.title("Selection Menu")
 
-        # Variable to store the selected value
+
         self.selection = None
 
-        # Set up the main frame
         self.frame = tk.Frame(self.root, padx=20, pady=20)
         self.frame.pack()
 
-        # Add a title label
         self.title_label = tk.Label(self.frame, text="Welcome to the Game", font=("Arial", 16, "bold"))
         self.title_label.pack(pady=10)
-
-        # Add buttons for selections
+        # selection buttons
         self.single_player_button = tk.Button(self.frame, text="Local Play", width=20, command=lambda: self.make_selection(0))
         self.single_player_button.pack(pady=5)
-
+        
         self.single_player_button = tk.Button(self.frame, text="Play against AI", width=20, command=lambda: self.make_selection(3))
         self.single_player_button.pack(pady=5)
 

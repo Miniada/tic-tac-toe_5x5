@@ -77,4 +77,28 @@ For the creation of the server and execution of the client, 2 processes were cre
 This way, all an user has to do is just run the game.py from the terminal and select an option. <br />
 
 
+## Andreea (andreea.munteanu05)
 
+- did the very basic game frame (as in the tic-tac-toe itself)
+
+- did the ai (Monte Carlo Tree Search)
+
+The biggest challenge was trying to solve the ai-related bugs. There was another attempt at an ai, using the minimax algorithm, but the initial version (with alpha-beta pruning) only made it so that it never actually chose a “best move” and so the result was always randomized. Removing the pruning and rewriting the algorithm (there was a logic problem, it didn't actually distinguish between who won the games the algorithm was simulating) made it run into another problem: it always ended up choosing the first available position and just filling in the boxes in consecutive order – and it was also extremely slow, even when telling it to stop simulating at the 6th future move.
+
+The biggest issue with the monte carlo tree search was the very same behavior (checking the boxes in order). It was caused by a bug in the function checking the status of the simulation, which resulted in a preference for using a particular combo in order to win. (This unfortunately was not also the source of the but in the minimax algorithm.) Attempting to make it expand more (having in mind an improved performance when the AI has to make the first move) only led to a horribly long runtime.
+
+Other challenges / thought processes:
+
+- thought at first that it would be similar to another tiny AI we had to do last semester (homework), which generated sentences and was trained on some stories. It was not at all similar, so reading and understanding how to actually solve this and what types of algorithms are generally used for such games took a decent amount of time and brainpower.
+
+- debated doing a model trained by playing against something else, but it required a teacher, and if we would have had that, then there would have been no point in training another ai
+
+- debated generating all possible games and training the ai on those (supervised learning), but the number of possible games was a deterrent
+
+- debated trying to make the minimax algorithm more efficient by trying to account for any symmetries or rotations of the board (this was in the end not done because the bug in the minimax was not solved and the minimax was left unused)
+
+- debated finding an algorithm to solve the game based on the symmetries / rotations of the board, the number of combos each square on the board could be part of (thus making certain squares more worthy of being chosen) and certain moves that have to be made with absolute certainty in order to win, or not lose (for example: if the opponent has 2 adiacent squares part of an otherwise empty line and one of the taken squares is the center, then the free square part of that same line and found right next to the center must be blocked); this wasn't done because the monte carlo bug was solved in the meantime
+
+- debated making the ai start as "X" with a weighted randomized move, but it seemed to play well despite always starting in the topmost line, so this also wasn't done
+
+- decided against trying to implement different game modes (AIs), as making even one functional ai proved to be difficult
